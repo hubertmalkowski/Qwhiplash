@@ -5,6 +5,15 @@ defmodule Qwhiplash.Core.Round do
   Each round players are randomly paired up and given a prompt.
   Each player submits an answer to the prompt.
   After all the answers are submitted, the players vote on the best answer.
+
+  ## Usage
+  users = ["user1", "user2", "user3", "user4"]
+
+  round = Round.new(0, users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])
+
+  round = Round.add_answer(round, "user1", "answer1")
+
+  round = Round.vote(round, "user2", "user1")
   """
 
   alias Qwhiplash.Core.Player
@@ -63,7 +72,7 @@ defmodule Qwhiplash.Core.Round do
 
   @spec vote(t(), Player.id(), Player.id()) :: t()
   def vote(round, voter, player) do
-    case find_player_duel(round, voter) do
+    case find_player_duel(round, player) do
       nil -> round
       {duel, _} -> vote(round, voter, duel, player)
     end
@@ -83,6 +92,24 @@ defmodule Qwhiplash.Core.Round do
         new_duel = Map.put(Map.get(round.duels, duel), :answers, new_answers)
 
         %{round | duels: Map.put(round.duels, duel, new_duel)}
+    end
+  end
+
+  @spec get_scores(t()) :: %{Player.id() => integer()}
+  def get_scores(%{duels: duels}) do
+    duels
+    |> Enum.reduce(%{}, fn {_, %{answers: answers}}, acc ->
+      Enum.reduce(answers, acc, fn {player, %{votes: votes}}, acc ->
+        Map.put(acc, player, length(votes))
+      end)
+    end)
+  end
+
+  @spec get_player_answer(t(), Player.id()) :: String.t() | nil
+  def get_player_answer(round, player) do
+    case find_player_duel(round, player) do
+      nil -> nil
+      {duel, _} -> Map.get(Map.get(round.duels, duel).answers, player)
     end
   end
 
