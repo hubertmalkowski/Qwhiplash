@@ -16,6 +16,7 @@ defmodule Qwhiplash.Core.Round do
   round = Round.vote(round, "user2", "user1")
   """
 
+  require Logger
   alias Qwhiplash.Core.Player
 
   @type id :: String.t()
@@ -50,48 +51,57 @@ defmodule Qwhiplash.Core.Round do
     %__MODULE__{round_index: index, duels: duels}
   end
 
-  @spec add_answer(t(), Player.id(), String.t()) :: t()
-  def add_answer(round, player, answer) do
-    with {duel, _} <- find_player_duel(round, player) do
-      add_answer(round, duel, player, answer)
-    else
-      nil -> round
-    end
-  end
-
-  @spec add_answer(t(), {Player.id(), Player.id()}, Player.id(), String.t()) :: t()
-  def add_answer(round, duel, player, answer) do
-    new_answers =
-      Map.get(round.duels, duel).answers
-      |> Map.put(player, %{answer: answer, votes: []})
-
-    new_duel = Map.put(Map.get(round.duels, duel), :answers, new_answers)
-
-    %{round | duels: Map.put(round.duels, duel, new_duel)}
-  end
-
-  @spec vote(t(), Player.id(), Player.id()) :: t()
-  def vote(round, voter, player) do
+  @doc """
+  Adds an answer to a duel of a given player.
+  If the player is not in a duel, it will raise an error.
+  """
+  @spec add_answer!(t(), Player.id(), String.t()) :: t()
+  def add_answer!(round, player, answer) do
     case find_player_duel(round, player) do
-      nil -> round
-      {duel, _} -> vote(round, voter, duel, player)
+      nil -> raise "Player not in duel"
+      {duel, _} -> add_answer!(round, duel, player, answer)
     end
   end
 
-  @spec vote(t(), Player.id(), {Player.id(), Player.id()}, Player.id()) :: t()
-  def vote(round, voter, duel, player) do
+  @spec add_answer!(t(), {Player.id(), Player.id()}, Player.id(), String.t()) :: t()
+  def add_answer!(round, duel, player, answer) do
+    case Map.get(round.duels, duel) do
+      %{} = duel_data ->
+        updated_duel =
+          duel_data
+          |> Map.update!(:answers, &Map.put(&1, player, %{answer: answer, votes: []}))
+
+        %{round | duels: Map.put(round.duels, duel, updated_duel)}
+
+      nil ->
+        raise "Duel not found"
+    end
+  end
+
+  @spec vote!(t(), Player.id(), Player.id()) :: t()
+  def vote!(round, voter, player) do
+    case find_player_duel(round, player) do
+      nil -> raise "Player not in duel"
+      {duel, _} -> vote!(round, voter, duel, player)
+    end
+  end
+
+  @spec vote!(t(), Player.id(), {Player.id(), Player.id()}, Player.id()) :: t()
+  def vote!(round, voter, duel, player) do
     answers = Map.get(round.duels, duel).answers
 
     case Map.get(answers, player) do
       nil ->
-        round
+        raise "Player has no answer"
 
-      %{votes: votes} ->
-        new_votes = Enum.uniq([voter | votes])
-        new_answers = Map.put(answers, player, %{answers[player] | votes: new_votes})
-        new_duel = Map.put(Map.get(round.duels, duel), :answers, new_answers)
+      %{votes: _} ->
+        updated_answers =
+          Map.update!(answers, player, fn %{votes: current_votes} = answer ->
+            %{answer | votes: Enum.uniq([voter | current_votes])}
+          end)
 
-        %{round | duels: Map.put(round.duels, duel, new_duel)}
+        updated_duel = Map.put(round.duels[duel], :answers, updated_answers)
+        %{round | duels: Map.put(round.duels, duel, updated_duel)}
     end
   end
 

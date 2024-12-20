@@ -2,25 +2,37 @@ defmodule Qwhiplash.Core.Game do
   @moduledoc """
   Represents a Qwhiplash game which is basically Quiplash copy.
 
-  ## Usage
+  Quiplash has following game states: 
+  - pending: The game has been created but not started yet. During this state, players can join the game.
+  - answering: Game has started and players are submitting their answers to prompts. This state happens each round.
+  - voting: Players are voting on the best answer. This state happens each round.
+  - results: The results after the round are being shown.
+  - finished: The game has finished. The final scores are shown.
+  - exiting: The game is being exited.
 
-  game = Game.new(["prompt1", "prompt2", "prompt3", "prompt4"])
-    |> Game.add_player(Player.new("player1"))
-    |> Game.add_player(Player.new("player2"))
-    |> Game.start_game()
-    |> Game.answer( "player1", "answer1")
-    |> Game.answer( "player2", "answer2")
-    |> Game.vote("player1", "player2")
-    |> Game.vote("player2", "player1") # will automatically advance the round if all players have voted
-    |> Game.advance_round()
+     pending                 
+        │                    
+        ▼                    
+    answering◄───┐           
+        │        │           
+        ▼        │for 3 turns
+      voting     │           
+        │        │           
+        ▼        │           
+     results─────┘           
+        │                    
+        ▼                    
+     finished                
+        │                    
+        ▼                    
+
 
   """
   alias Qwhiplash.Core.Player
   alias Qwhiplash.Core.Round
 
   @type id :: String.t()
-  @type game_status :: :pending | :playing | :finished | :exiting
-  @type game_state :: :prompting | :voting | :results | :finished
+  @type game_status :: :pending | :answering | :voting | :results | :finished | :exiting
 
   @type t :: %__MODULE__{
           id: id(),
@@ -55,33 +67,13 @@ defmodule Qwhiplash.Core.Game do
   @spec start_game(t()) :: t()
   def start_game(game) do
     game
-    |> Map.put(:status, :playing)
+    |> leap_to_next_state()
     |> create_round()
-  end
-
-  @spec finish_game(t()) :: t()
-  def finish_game(game) do
-    %{game | status: :finished}
   end
 
   @spec exit_game(t()) :: t()
   def exit_game(game) do
     %{game | status: :exiting}
-  end
-
-  @spec advance_round(t()) :: t()
-  def advance_round(game) do
-    game =
-      add_scores_from_current_round(game)
-
-    next_current_round = game.current_round + 1
-
-    if next_current_round == game.round_limit do
-      finish_game(game)
-    else
-      Map.put(game, :current_round, next_current_round)
-      |> create_round()
-    end
   end
 
   @spec add_player(t(), Player.t()) :: {t(), Player.id()}
@@ -177,4 +169,18 @@ defmodule Qwhiplash.Core.Game do
   defp generate_uuid do
     UUID.uuid4()
   end
+
+  defp leap_to_next_state(%__MODULE__{status: :pending} = game), do: %{game | status: :answering}
+  defp leap_to_next_state(%__MODULE__{status: :answering} = game), do: %{game | status: :voting}
+  defp leap_to_next_state(%__MODULE__{status: :voting} = game), do: %{game | status: :results}
+
+  defp leap_to_next_state(%__MODULE__{status: :results} = game) do
+    if game.current_round == game.round_limit do
+      %{game | status: :finished}
+    else
+      %{game | status: :answering}
+    end
+  end
+
+  defp leap_to_next_state(%__MODULE__{status: :finished} = game), do: %{game | status: :exiting}
 end

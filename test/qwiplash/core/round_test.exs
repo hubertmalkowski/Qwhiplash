@@ -26,12 +26,12 @@ defmodule Qwhiplash.Core.RoundTest do
       assert Map.keys(round.duels) |> Enum.any?(fn duel -> duel in played_duels end) == false
     end
 
-    test "add_answer/3 adds an answer to a duel" do
+    test "add_answer!/3 adds an answer to a duel" do
       users = ["user1", "user2", "user3", "user4"]
       round = Round.new(0, users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])
 
-      round = Round.add_answer(round, "user1", "answer1")
-      round = Round.add_answer(round, "user2", "answer2")
+      round = Round.add_answer!(round, "user1", "answer1")
+      round = Round.add_answer!(round, "user2", "answer2")
 
       assert Kernel.map_size(round.duels) == 2
       assert Map.get(round.duels, {"user1", "user2"}).answers["user1"].answer == "answer1"
@@ -42,11 +42,11 @@ defmodule Qwhiplash.Core.RoundTest do
       users = ["user1", "user2", "user3", "user4"]
       round = Round.new(0, users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])
 
-      round = Round.add_answer(round, "user1", "answer1")
-      round = Round.add_answer(round, "user2", "answer2")
+      round = Round.add_answer!(round, "user1", "answer1")
+      round = Round.add_answer!(round, "user2", "answer2")
 
-      round = Round.vote(round, "user3", "user1")
-      round = Round.vote(round, "user4", "user1")
+      round = Round.vote!(round, "user3", "user1")
+      round = Round.vote!(round, "user4", "user1")
 
       votes = Map.get(round.duels, {"user1", "user2"}).answers["user1"].votes
 
@@ -58,11 +58,11 @@ defmodule Qwhiplash.Core.RoundTest do
       users = ["user1", "user2", "user3", "user4"]
       round = Round.new(0, users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])
 
-      round = Round.add_answer(round, "user1", "answer1")
-      round = Round.add_answer(round, "user2", "answer2")
+      round = Round.add_answer!(round, "user1", "answer1")
+      round = Round.add_answer!(round, "user2", "answer2")
 
-      round = Round.vote(round, "user3", "user1")
-      round = Round.vote(round, "user4", "user1")
+      round = Round.vote!(round, "user3", "user1")
+      round = Round.vote!(round, "user4", "user1")
 
       scores = Round.get_scores(round)
 
