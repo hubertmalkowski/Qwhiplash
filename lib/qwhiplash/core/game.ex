@@ -8,26 +8,35 @@ defmodule Qwhiplash.Core.Game do
   - voting: Players are voting on the best answer. This state happens each round.
   - results: The results after the round are being shown.
   - finished: The game has finished. The final scores are shown.
-  - exiting: The game is being exited.
-
-     pending                 
-        │                    
-        ▼                    
-    answering◄───┐           
-        │        │           
-        ▼        │for 3 turns
-      voting     │           
-        │        │           
-        ▼        │           
-     results─────┘           
-        │                    
-        ▼                    
-     finished                
-        │                    
-        ▼                    
+  - exiting: The game is being exited. After this state, the game is deleted.
 
 
+           pending                    
+              │                       
+              │                       
+              ▼                       
+          answering ◄─────────────┐   
+              │                   │   
+              │                   │   
+              ▼                   │   
+            voting                │   
+              │                   │   
+              │                   │   
+              ▼                   │   
+    ┌────────────────────┐        │   
+    │Round limit reached?│        │   
+    └─────────┬─────────┬┘        │   
+              │         │         │   
+             nope      yep        │   
+              │         │         │   
+              ▼         │         │   
+           finished     └─────►results
+              │                       
+              │                       
+              ▼                       
+           exiting
   """
+  alias Qwhiplash.Core.DuelGenerator
   alias Qwhiplash.Core.Player
   alias Qwhiplash.Core.Round
 
@@ -42,7 +51,7 @@ defmodule Qwhiplash.Core.Game do
           },
           current_round: integer(),
           status: game_status(),
-          rounds: list(Round.t()),
+          rounds: %{integer() => Round.t()},
           prompt_pool: list(String.t()),
           round_limit: integer()
         }
@@ -56,7 +65,7 @@ defmodule Qwhiplash.Core.Game do
       id: generate_uuid(),
       code: generate_code(),
       players: %{},
-      rounds: [],
+      rounds: %{},
       prompt_pool: prompt_pool,
       current_round: 0,
       status: :pending,
@@ -82,41 +91,94 @@ defmodule Qwhiplash.Core.Game do
     {%{game | players: Map.put(game.players, uuid, player)}, uuid}
   end
 
-  @spec answer(t(), Player.id(), String.t()) :: t()
-  def answer(game, player_id, answer) do
-    replace_round =
-      game
-      |> get_current_round()
-      |> Round.add_answer(player_id, answer)
+  @doc """
+  Adds an answer to the current round.
+  If the player is not in a duel or the player does not exist it will return :not_in_duel error.
+  If the game is not in the answering state it will return :invalid_state error.
 
-    new_rounds =
-      Enum.map(game.rounds, fn round ->
-        if round.round_index == game.current_round do
-          replace_round
-        else
-          round
+  If all players have answered, it will finish the answer phase and leap to the next state (voting).
+  """
+  @spec answer(t(), Player.id(), String.t()) ::
+          {:ok, t()} | {:error, :not_in_duel} | {:error, :invalid_state}
+  def answer(%{status: :answering} = game, player_id, answer) do
+    try do
+      updated_round =
+        game
+        |> get_current_round()
+        |> Round.add_answer!(player_id, answer)
+
+      game =
+        case Round.all_answered?(updated_round) do
+          true -> finish_answer_phase(game)
+          false -> game
         end
-      end)
+        |> update_current_round(updated_round)
 
-    %{game | rounds: new_rounds}
+      {:ok, game}
+    rescue
+      _ -> {:error, :not_in_duel}
+    end
   end
 
-  def vote(game, voter_id, player_id) do
-    replace_round =
+  def answer(_, _, _), do: {:error, :invalid_state}
+
+  @doc """
+  Finishes the answer phase and leaps to the next state (voting).
+  """
+  @spec finish_answer_phase(t()) :: t()
+  def finish_answer_phase(%__MODULE__{status: :answering} = game) do
+    game
+    |> leap_to_next_state()
+  end
+
+  @doc """
+  Adds an answer to the current round.
+  If the player is not in a duel or the player does not exist it will return :not_in_duel error.
+  If the game is not in the answering state it will return :invalid_state error.
+  If the voter is not a player in the game it will return :invalid_voter error.
+
+  If all players have voted, it will leap to the next state (results).
+  """
+  @spec vote(t(), Player.id(), Player.id()) ::
+          {:ok, t()}
+          | {:error, :not_in_duel}
+          | {:error, :invalid_state}
+          | {:error, :invalid_voter}
+  def vote(%{status: :voting} = game, voter_id, player_id) do
+    if player_is_in_game?(game, voter_id) do
       game
       |> get_current_round()
-      |> Round.vote(voter_id, player_id)
+      |> vote_in_round(voter_id, player_id)
+      |> case do
+        {:error, _reason} = error ->
+          error
 
-    new_rounds =
-      Enum.map(game.rounds, fn round ->
-        if round.round_index == game.current_round do
-          replace_round
-        else
-          round
-        end
-      end)
+        round ->
+          {:ok, update_current_round(game, round)}
+      end
+    else
+      {:error, :invalid_voter}
+    end
+  end
 
-    %{game | rounds: new_rounds}
+  def vote(_, _, _), do: {:error, :invalid_state}
+
+  @spec finish_voting_phase(t()) :: t()
+  def finish_voting_phase(%__MODULE__{status: :voting} = game) do
+    game
+    |> add_scores_from_current_round()
+    |> leap_to_next_state()
+  end
+
+  @spec finish_results_phase(t()) :: t()
+  def finish_results_phase(%__MODULE__{status: :results} = game) do
+    game
+    |> leap_to_next_state()
+    |> next_round()
+  end
+
+  @spec finish_game() :: :ok
+  def finish_game() do
   end
 
   @spec game_finished?(t()) :: boolean()
@@ -126,14 +188,31 @@ defmodule Qwhiplash.Core.Game do
 
   @spec get_current_round(t()) :: Round.t()
   def get_current_round(game) do
-    Enum.find(game.rounds, fn round -> round.round_index == game.current_round end)
+    Map.get(game.rounds, game.current_round)
+  end
+
+  defp update_current_round(game, round) do
+    %{game | rounds: Map.put(game.rounds, game.current_round, round)}
+  end
+
+  defp vote_in_round(round, voter_id, player_id) do
+    try do
+      Round.vote!(round, voter_id, player_id)
+    rescue
+      _ -> {:error, :not_in_duel}
+    end
+  end
+
+  defp next_round(game) do
+    %{game | current_round: game.current_round + 1}
+    |> create_round()
   end
 
   defp create_round(game) do
     round =
-      Round.new(game.current_round, list_player_ids(game), list_all_duels(game), game.prompt_pool)
+      Round.new(list_player_ids(game), list_all_duels(game), game.prompt_pool)
 
-    %{game | rounds: [round | game.rounds]}
+    %{game | rounds: Map.put(game.rounds, game.current_round, round)}
   end
 
   defp add_scores_from_current_round(game) do
@@ -159,7 +238,11 @@ defmodule Qwhiplash.Core.Game do
 
   @spec list_all_duels(t()) :: list({Player.id(), Player.id()})
   defp list_all_duels(game) do
-    Enum.flat_map(game.rounds, &Map.keys(&1.duels))
+    Enum.flat_map(game.rounds, &Map.keys(elem(&1, 1).duels))
+  end
+
+  defp player_is_in_game?(game, player_id) do
+    Map.has_key?(game.players, player_id)
   end
 
   defp list_player_ids(game) do
@@ -172,15 +255,16 @@ defmodule Qwhiplash.Core.Game do
 
   defp leap_to_next_state(%__MODULE__{status: :pending} = game), do: %{game | status: :answering}
   defp leap_to_next_state(%__MODULE__{status: :answering} = game), do: %{game | status: :voting}
-  defp leap_to_next_state(%__MODULE__{status: :voting} = game), do: %{game | status: :results}
 
-  defp leap_to_next_state(%__MODULE__{status: :results} = game) do
-    if game.current_round == game.round_limit do
+  defp leap_to_next_state(%__MODULE__{status: :voting} = game) do
+    if game.current_round + 1 == game.round_limit do
       %{game | status: :finished}
     else
-      %{game | status: :answering}
+      %{game | status: :results}
     end
   end
+
+  defp leap_to_next_state(%__MODULE__{status: :results} = game), do: %{game | status: :answering}
 
   defp leap_to_next_state(%__MODULE__{status: :finished} = game), do: %{game | status: :exiting}
 end

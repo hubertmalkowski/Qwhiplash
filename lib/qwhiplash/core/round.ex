@@ -17,38 +17,40 @@ defmodule Qwhiplash.Core.Round do
   """
 
   require Logger
+  alias Qwhiplash.Core.DuelGenerator
   alias Qwhiplash.Core.Player
 
   @type id :: String.t()
 
-  @type duels :: %{
-          {id(), id()} => %{
-            prompt: String.t(),
-            answers: %{
-              id() => %{
-                answer: String.t(),
-                votes: list(Player.id())
-              }
+  @type duel :: %{
+          prompt: String.t(),
+          answers: %{
+            id() => %{
+              answer: String.t(),
+              votes: list(Player.id())
             }
           }
         }
 
-  @type t :: %__MODULE__{
-          round_index: integer(),
-          duels: duels()
+  @type duels :: %{
+          MapSet.t() => duel()
         }
 
-  defstruct [:round_index, :duels]
+  @type t :: %__MODULE__{
+          duels: duels()
+          # I could just store the players here, but I think I might need to store more data in the future
+        }
+
+  defstruct [:duels]
 
   @spec new(
-          integer(),
           list(Player.t()),
-          list({Player.id(), Player.id()}),
+          list(MapSet.t()),
           list(String.t())
         ) :: t()
-  def new(index, players, played_duels, prompts) do
-    duels = generate_duel_pairings(players, played_duels) |> generate_duels(prompts)
-    %__MODULE__{round_index: index, duels: duels}
+  def new(players, played_duels, prompts) do
+    duels = DuelGenerator.generate(players, played_duels) |> generate_duels(prompts)
+    %__MODULE__{duels: duels}
   end
 
   @doc """
@@ -63,7 +65,7 @@ defmodule Qwhiplash.Core.Round do
     end
   end
 
-  @spec add_answer!(t(), {Player.id(), Player.id()}, Player.id(), String.t()) :: t()
+  @spec add_answer!(t(), MapSet.t(), Player.id(), String.t()) :: t()
   def add_answer!(round, duel, player, answer) do
     case Map.get(round.duels, duel) do
       %{} = duel_data ->
@@ -78,6 +80,10 @@ defmodule Qwhiplash.Core.Round do
     end
   end
 
+  @doc """
+  Votes for a one player's answer in a duel.
+  If the player is not in a duel, it will raise an error.
+  """
   @spec vote!(t(), Player.id(), Player.id()) :: t()
   def vote!(round, voter, player) do
     case find_player_duel(round, player) do
@@ -117,16 +123,39 @@ defmodule Qwhiplash.Core.Round do
 
   @spec get_player_answer(t(), Player.id()) :: String.t() | nil
   def get_player_answer(round, player) do
+    case get_player_answer_map(round, player) do
+      nil -> nil
+      answer_map -> answer_map.answer
+    end
+  end
+
+  @spec get_player_votes(t(), Player.id()) :: list(Player.id()) | nil
+  def get_player_votes(round, player) do
+    case get_player_answer_map(round, player) do
+      nil -> nil
+      answer_map -> answer_map.votes
+    end
+  end
+
+  @spec find_player_duel(t(), Player.id()) :: {MapSet.t(), duel()} | nil
+  def find_player_duel(round, player) do
+    Enum.find(round.duels, fn {key, _} ->
+      MapSet.member?(key, player)
+    end)
+  end
+
+  @spec all_answered?(t()) :: boolean()
+  def all_answered?(round) do
+    Enum.all?(Map.values(round.duels), fn duel ->
+      Map.keys(duel.answers) |> length() == 2
+    end)
+  end
+
+  defp get_player_answer_map(round, player) do
     case find_player_duel(round, player) do
       nil -> nil
       {duel, _} -> Map.get(Map.get(round.duels, duel).answers, player)
     end
-  end
-
-  defp find_player_duel(round, player) do
-    Enum.find(round.duels, fn {key, _} ->
-      elem(key, 0) == player or elem(key, 1) == player
-    end)
   end
 
   defp generate_duels(pairings, prompts) do
@@ -145,21 +174,5 @@ defmodule Qwhiplash.Core.Round do
 
   defp random_prompt(prompts) do
     Enum.random(prompts)
-  end
-
-  defp generate_duel_pairings(players, played_duels) do
-    all_pairs =
-      players
-      |> Enum.with_index()
-      |> Enum.flat_map(fn {p1, _} ->
-        Enum.filter(players, fn p2 -> p1 < p2 end)
-        |> Enum.map(fn p2 -> {p1, p2} end)
-      end)
-
-    new_duels = Enum.reject(all_pairs, &Enum.member?(played_duels, &1))
-
-    selected_duels = Enum.take(new_duels, div(length(players), 2))
-
-    selected_duels
   end
 end

@@ -9,12 +9,11 @@ defmodule Qwhiplash.QwiplashFixtures do
   end
 
   def create_round_fixture(
-        round_index \\ 0,
         users \\ user_list_fixture(),
         played_duels \\ [],
         prompts \\ ["prompt1", "prompt2", "prompt3", "prompt4"]
       ) do
-    Round.new(round_index, users, played_duels, prompts)
+    Round.new(users, played_duels, prompts)
   end
 
   def create_player(num \\ nil) do
@@ -26,9 +25,13 @@ defmodule Qwhiplash.QwiplashFixtures do
   end
 
   def game_fixture() do
+    game_fixture(8)
+  end
+
+  def game_fixture(user_amount) do
     game = Game.new(["prompt1", "prompt2", "prompt3", "prompt4"])
 
-    create_players()
+    create_players(user_amount)
     |> Enum.reduce(game, fn player, acc ->
       {game, _} = Game.add_player(acc, player)
       game
