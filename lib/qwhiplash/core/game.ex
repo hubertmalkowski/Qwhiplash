@@ -85,11 +85,17 @@ defmodule Qwhiplash.Core.Game do
     %{game | status: :exiting}
   end
 
+  @doc """
+  Adds a player to the game.
+  If the game is not in the pending state it will return :invalid_state error.
+  """
   @spec add_player(t(), Player.t()) :: {t(), Player.id()}
-  def add_player(game, player) do
+  def add_player(%__MODULE__{status: :pending} = game, player) do
     uuid = generate_uuid()
     {%{game | players: Map.put(game.players, uuid, player)}, uuid}
   end
+
+  def add_player(_, _), do: {:error, :invalid_state}
 
   @doc """
   Adds an answer to the current round.

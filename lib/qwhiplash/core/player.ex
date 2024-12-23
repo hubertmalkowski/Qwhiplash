@@ -10,7 +10,7 @@ defmodule Qwhiplash.Core.Player do
           name: String.t()
         }
 
-  defstruct [:score, :online, :name, :dueled]
+  defstruct [:score, :online, :name]
 
   @spec new(String.t()) :: %__MODULE__{}
   def new(name) do

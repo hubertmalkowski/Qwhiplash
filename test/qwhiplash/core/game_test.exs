@@ -1,4 +1,4 @@
-defmodule Qwiplash.Core.GameTest do
+defmodule Qwhiplash.Core.GameTest do
   require Logger
   alias Qwhiplash.Core.Round
   alias Qwhiplash.Core.Player
@@ -22,6 +22,14 @@ defmodule Qwiplash.Core.GameTest do
 
       assert uuid
       assert map_size(game.players) == 1
+    end
+
+    test "add_player/2 returns error if game is not in pending state" do
+      game = Game.new([])
+      player = Player.new("player1")
+
+      game = %{game | status: :answering}
+      {:error, :invalid_state} = Game.add_player(game, player)
     end
 
     test "start_game/1 changes the status to playing and creates a round" do
