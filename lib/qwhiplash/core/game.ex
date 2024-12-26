@@ -36,7 +36,6 @@ defmodule Qwhiplash.Core.Game do
               ▼                       
            exiting
   """
-  alias Qwhiplash.Core.DuelGenerator
   alias Qwhiplash.Core.Player
   alias Qwhiplash.Core.Round
 
@@ -49,6 +48,7 @@ defmodule Qwhiplash.Core.Game do
           players: %{
             id() => Player.t()
           },
+          host_pid: pid(),
           current_round: integer(),
           status: game_status(),
           rounds: %{integer() => Round.t()},
@@ -56,17 +56,28 @@ defmodule Qwhiplash.Core.Game do
           round_limit: integer()
         }
 
-  @enforce_keys [:id, :code, :players, :rounds, :prompt_pool, :current_round, :status]
-  defstruct [:id, :code, :players, :rounds, :prompt_pool, :current_round, :status, :round_limit]
+  @enforce_keys [:id, :code, :players, :rounds, :prompt_pool, :current_round, :status, :host_pid]
+  defstruct [
+    :id,
+    :code,
+    :players,
+    :rounds,
+    :prompt_pool,
+    :current_round,
+    :status,
+    :round_limit,
+    :host_pid
+  ]
 
-  @spec new(list()) :: %__MODULE__{}
-  def new(prompt_pool) do
+  @spec new(pid(), list()) :: %__MODULE__{}
+  def new(host_pid, prompt_pool) do
     %__MODULE__{
       id: generate_uuid(),
       code: generate_code(),
       players: %{},
       rounds: %{},
       prompt_pool: prompt_pool,
+      host_pid: host_pid,
       current_round: 0,
       status: :pending,
       round_limit: 3
@@ -89,10 +100,14 @@ defmodule Qwhiplash.Core.Game do
   Adds a player to the game.
   If the game is not in the pending state it will return :invalid_state error.
   """
-  @spec add_player(t(), Player.t()) :: {t(), Player.id()}
+  @spec add_player(t(), Player.t()) :: {:ok, t(), Player.id()} | {:error, :player_exists}
   def add_player(%__MODULE__{status: :pending} = game, player) do
-    uuid = generate_uuid()
-    {%{game | players: Map.put(game.players, uuid, player)}, uuid}
+    if player_with_name_exists?(game, player.name) do
+      {:error, :player_exists}
+    else
+      uuid = generate_uuid()
+      {:ok, %{game | players: Map.put(game.players, uuid, player)}, uuid}
+    end
   end
 
   def add_player(_, _), do: {:error, :invalid_state}
@@ -115,8 +130,12 @@ defmodule Qwhiplash.Core.Game do
 
       game =
         case Round.all_answered?(updated_round) do
-          true -> finish_answer_phase(game)
-          false -> game
+          true ->
+            {:ok, game} = finish_answer_phase(game)
+            game
+
+          false ->
+            game
         end
         |> update_current_round(updated_round)
 
@@ -131,11 +150,14 @@ defmodule Qwhiplash.Core.Game do
   @doc """
   Finishes the answer phase and leaps to the next state (voting).
   """
-  @spec finish_answer_phase(t()) :: t()
+  @spec finish_answer_phase(t()) :: {:ok, t()} | {:error, :invalid_state}
   def finish_answer_phase(%__MODULE__{status: :answering} = game) do
-    game
-    |> leap_to_next_state()
+    {:ok,
+     game
+     |> leap_to_next_state()}
   end
+
+  def finish_answer_phase(_), do: {:error, :invalid_state}
 
   @doc """
   Adds an answer to the current round.
@@ -273,4 +295,8 @@ defmodule Qwhiplash.Core.Game do
   defp leap_to_next_state(%__MODULE__{status: :results} = game), do: %{game | status: :answering}
 
   defp leap_to_next_state(%__MODULE__{status: :finished} = game), do: %{game | status: :exiting}
+
+  defp player_with_name_exists?(game, name) do
+    Enum.any?(game.players, fn {_, player} -> player.name == name end)
+  end
 end

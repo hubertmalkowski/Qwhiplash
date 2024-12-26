@@ -1,6 +1,5 @@
 defmodule Qwhiplash.Core.RoundTest do
   require Logger
-  alias Qwhiplash.QwiplashFixtures
   alias Qwhiplash.Core.Round
   use ExUnit.Case
 

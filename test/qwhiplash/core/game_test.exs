@@ -8,7 +8,7 @@ defmodule Qwhiplash.Core.GameTest do
 
   describe "Game core" do
     test "new/1 creates a game with a prompt pool, 4 letter code, and pending status" do
-      game = Game.new(["prompt1", "prompt2", "prompt3", "prompt4"])
+      game = Game.new(self(), ["prompt1", "prompt2", "prompt3", "prompt4"])
 
       assert String.length(game.code) == 4
       assert game.status == :pending
@@ -16,20 +16,28 @@ defmodule Qwhiplash.Core.GameTest do
     end
 
     test "add_player/2 adds a player to the game and returns players id" do
-      game = Game.new([])
+      game = Game.new(self(), [])
       player = Player.new("player1")
-      {game, uuid} = Game.add_player(game, player)
+      {:ok, game, uuid} = Game.add_player(game, player)
 
       assert uuid
       assert map_size(game.players) == 1
     end
 
     test "add_player/2 returns error if game is not in pending state" do
-      game = Game.new([])
+      game = Game.new(self(), [])
       player = Player.new("player1")
 
       game = %{game | status: :answering}
       {:error, :invalid_state} = Game.add_player(game, player)
+    end
+
+    test "add_player/2 returns error if player with the same name is already in the game" do
+      game = Game.new(self(), [])
+      player = Player.new("player1")
+
+      {:ok, game, _} = Game.add_player(game, player)
+      {:error, :player_exists} = Game.add_player(game, player)
     end
 
     test "start_game/1 changes the status to playing and creates a round" do
@@ -96,7 +104,7 @@ defmodule Qwhiplash.Core.GameTest do
       game = QwiplashFixtures.game_fixture()
 
       game = Game.start_game(game)
-      game = Game.finish_answer_phase(game)
+      {:ok, game} = Game.finish_answer_phase(game)
 
       assert game.status == :voting
     end
@@ -151,7 +159,8 @@ defmodule Qwhiplash.Core.GameTest do
 
       game =
         Game.start_game(game)
-        |> Game.finish_answer_phase()
+
+      {:ok, game} = Game.finish_answer_phase(game)
 
       game = Game.finish_voting_phase(game)
 
@@ -164,8 +173,9 @@ defmodule Qwhiplash.Core.GameTest do
       game =
         Game.start_game(game)
         |> Map.put(:round_limit, 1)
-        |> Game.finish_answer_phase()
-        |> Game.finish_voting_phase()
+
+      {:ok, game} = Game.finish_answer_phase(game)
+      game = Game.finish_voting_phase(game)
 
       assert game.status == :finished
     end
@@ -185,8 +195,9 @@ defmodule Qwhiplash.Core.GameTest do
 
       game =
         Game.start_game(game)
-        |> Game.finish_answer_phase()
-        |> Game.finish_voting_phase()
+
+      {:ok, game} = Game.finish_answer_phase(game)
+      game = Game.finish_voting_phase(game)
 
       game = Game.finish_results_phase(game)
 
@@ -200,8 +211,9 @@ defmodule Qwhiplash.Core.GameTest do
       game =
         Game.start_game(game)
         |> Map.put(:round_limit, 1)
-        |> Game.finish_answer_phase()
-        |> Game.finish_voting_phase()
+
+      {:ok, game} = Game.finish_answer_phase(game)
+      game = Game.finish_voting_phase(game)
 
       assert Game.game_finished?(game)
     end
