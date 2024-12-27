@@ -1,5 +1,6 @@
 defmodule QwhiplashWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :qwhiplash
+  require Logger
 
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
@@ -45,4 +46,10 @@ defmodule QwhiplashWeb.Endpoint do
   plug Plug.Head
   plug Plug.Session, @session_options
   plug QwhiplashWeb.Router
+
+  # def introspect(conn, _opts) do
+  #   session_id = get_session(conn, :session_id)
+  #   Logger.debug("Session ID: #{inspect(session_id)}")
+  #   conn
+  # end
 end

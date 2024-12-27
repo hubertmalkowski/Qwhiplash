@@ -48,7 +48,7 @@ defmodule Qwhiplash.Core.Game do
           players: %{
             id() => Player.t()
           },
-          host_pid: pid(),
+          host_id: binary(),
           current_round: integer(),
           status: game_status(),
           rounds: %{integer() => Round.t()},
@@ -56,7 +56,7 @@ defmodule Qwhiplash.Core.Game do
           round_limit: integer()
         }
 
-  @enforce_keys [:id, :code, :players, :rounds, :prompt_pool, :current_round, :status, :host_pid]
+  @enforce_keys [:id, :code, :players, :rounds, :prompt_pool, :current_round, :status, :host_id]
   defstruct [
     :id,
     :code,
@@ -66,18 +66,18 @@ defmodule Qwhiplash.Core.Game do
     :current_round,
     :status,
     :round_limit,
-    :host_pid
+    :host_id
   ]
 
-  @spec new(pid(), list()) :: %__MODULE__{}
-  def new(host_pid, prompt_pool) do
+  @spec new(binary(), list()) :: %__MODULE__{}
+  def new(host_id, prompt_pool) do
     %__MODULE__{
       id: generate_uuid(),
       code: generate_code(),
       players: %{},
       rounds: %{},
       prompt_pool: prompt_pool,
-      host_pid: host_pid,
+      host_id: host_id,
       current_round: 0,
       status: :pending,
       round_limit: 3
@@ -98,19 +98,34 @@ defmodule Qwhiplash.Core.Game do
 
   @doc """
   Adds a player to the game.
+  If the player is already in the game it will return :ok_reconnected no matter what state of the game it is.
+  If the player already exists it will return :player_exists error.
   If the game is not in the pending state it will return :invalid_state error.
   """
-  @spec add_player(t(), Player.t()) :: {:ok, t(), Player.id()} | {:error, :player_exists}
-  def add_player(%__MODULE__{status: :pending} = game, player) do
-    if player_with_name_exists?(game, player.name) do
-      {:error, :player_exists}
-    else
-      uuid = generate_uuid()
-      {:ok, %{game | players: Map.put(game.players, uuid, player)}, uuid}
+  @spec add_player(t(), Player.t(), binary()) ::
+          {:ok, t(), Player.id()}
+          | {:error, :player_exists}
+          | {:error, :invalid_state}
+          | {:ok_reconnected, t(), Player.id()}
+          | {:error, :different_name}
+  def add_player(game, player, session_id) do
+    name_taken? = player_with_name_exists?(game, player.name)
+    player_already_in_game? = player_with_id_exists?(game, session_id)
+
+    cond do
+      player_already_in_game? and name_taken? ->
+        {:ok_reconnected, game, session_id}
+
+      name_taken? ->
+        {:error, :player_exists}
+
+      game.status != :pending ->
+        {:error, :invalid_state}
+
+      true ->
+        {:ok, %{game | players: Map.put(game.players, session_id, player)}, session_id}
     end
   end
-
-  def add_player(_, _), do: {:error, :invalid_state}
 
   @doc """
   Adds an answer to the current round.
@@ -298,5 +313,9 @@ defmodule Qwhiplash.Core.Game do
 
   defp player_with_name_exists?(game, name) do
     Enum.any?(game.players, fn {_, player} -> player.name == name end)
+  end
+
+  defp player_with_id_exists?(game, player_id) do
+    Map.has_key?(game.players, player_id)
   end
 end

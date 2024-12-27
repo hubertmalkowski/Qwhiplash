@@ -18,9 +18,9 @@ defmodule Qwhiplash.Core.GameTest do
     test "add_player/2 adds a player to the game and returns players id" do
       game = Game.new(self(), [])
       player = Player.new("player1")
-      {:ok, game, uuid} = Game.add_player(game, player)
+      {:ok, game, id} = Game.add_player(game, player, "id")
 
-      assert uuid
+      assert id
       assert map_size(game.players) == 1
     end
 
@@ -29,15 +29,23 @@ defmodule Qwhiplash.Core.GameTest do
       player = Player.new("player1")
 
       game = %{game | status: :answering}
-      {:error, :invalid_state} = Game.add_player(game, player)
+      assert {:error, :invalid_state} = Game.add_player(game, player, "id")
     end
 
     test "add_player/2 returns error if player with the same name is already in the game" do
       game = Game.new(self(), [])
       player = Player.new("player1")
 
-      {:ok, game, _} = Game.add_player(game, player)
-      {:error, :player_exists} = Game.add_player(game, player)
+      {:ok, game, _} = Game.add_player(game, player, "ua")
+      {:error, :player_exists} = Game.add_player(game, player, "id")
+    end
+
+    test "add_player/2 returns reconnnected player if player with the same id is already in the game" do
+      game = Game.new(self(), [])
+      player = Player.new("player1")
+
+      {:ok, game, _} = Game.add_player(game, player, "ua")
+      {:ok_reconnected, game, _} = Game.add_player(game, player, "ua")
     end
 
     test "start_game/1 changes the status to playing and creates a round" do

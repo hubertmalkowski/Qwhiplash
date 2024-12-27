@@ -11,6 +11,7 @@ defmodule Qwhiplash.Application do
       QwhiplashWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:qwhiplash, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Qwhiplash.PubSub},
+      Qwhiplash.GameDynamicSupervisor,
       # Start a worker by calling: Qwhiplash.Worker.start_link(arg)
       # {Qwhiplash.Worker, arg},
       # Start to serve requests, typically the last entry

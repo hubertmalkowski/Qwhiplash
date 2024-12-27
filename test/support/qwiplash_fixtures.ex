@@ -29,11 +29,11 @@ defmodule Qwhiplash.QwiplashFixtures do
   end
 
   def game_fixture(user_amount) do
-    game = Game.new(self(), ["prompt1", "prompt2", "prompt3", "prompt4"])
+    game = Game.new("id", ["prompt1", "prompt2", "prompt3", "prompt4"])
 
     create_players(user_amount)
     |> Enum.reduce(game, fn player, acc ->
-      {:ok, game, _} = Game.add_player(acc, player)
+      {:ok, game, _} = Game.add_player(acc, player, player.name)
       game
     end)
   end

@@ -1,4 +1,6 @@
 defmodule Qwhiplash.Boundary.GameServer do
+  require Logger
+  alias Phoenix.PubSub
   alias Qwhiplash.Core.Player
   alias Qwhiplash.Core.Game
   use GenServer
@@ -18,10 +20,25 @@ defmodule Qwhiplash.Boundary.GameServer do
     GenServer.call(pid, {:exit})
   end
 
-  @spec add_player(pid(), String.t()) ::
-          {:ok, String.t()} | {:error, :invalid_state} | {:error, :player_exists}
-  def add_player(pid, name) do
-    GenServer.call(pid, {:add_player, name})
+  @spec add_player(pid(), String.t(), binary()) ::
+          {:ok, String.t()}
+          | {:error, :invalid_state}
+          | {:error, :player_exists}
+          | {:ok, :reconnected, String.t()}
+  def add_player(pid, name, id) do
+    GenServer.call(pid, {:add_player, name, id})
+  end
+
+  @spec subscribe(pid()) :: :ok
+  def subscribe(pid) do
+    {:ok, code} = get_game_code(pid)
+    PubSub.subscribe(Qwhiplash.PubSub, pubsub_topic(code))
+  end
+
+  @spec unsubscribe(pid()) :: :ok
+  def unsubscribe(pid) do
+    {:ok, code} = get_game_code(pid)
+    PubSub.unsubscribe(Qwhiplash.PubSub, pubsub_topic(code))
   end
 
   def answer(pid, player_id, answer) do
@@ -30,6 +47,19 @@ defmodule Qwhiplash.Boundary.GameServer do
 
   def finish_answer_phase(pid) do
     GenServer.call(pid, {:finish_answer_phase})
+  end
+
+  def get_host_id(pid) do
+    GenServer.call(pid, {:get_host_id})
+  end
+
+  @spec get_game_code(pid()) :: {:ok, String.t()}
+  def get_game_code(pid) do
+    GenServer.call(pid, {:get_game_code})
+  end
+
+  def get_game_state(pid) do
+    GenServer.call(pid, {:get_game_state})
   end
 
   def vote(pid, player_id, voter_id) do
@@ -63,12 +93,20 @@ defmodule Qwhiplash.Boundary.GameServer do
     {:reply, :ok, game}
   end
 
-  def handle_call({:add_player, name}, _from, state) do
+  def handle_call({:add_player, name, id}, _from, state) do
     player = Player.new(name)
 
-    case Game.add_player(state, player) do
-      {:ok, game, uuid} -> {:reply, {:ok, uuid}, game}
-      {:error, error_message} -> {:reply, {:error, error_message}, state}
+    case Game.add_player(state, player, id) do
+      {:ok, game, uuid} ->
+        send_game_state(game)
+        {:reply, {:ok, uuid}, game}
+
+      {:ok_reconnected, game, uuid} ->
+        send_game_state(game)
+        {:reply, {:ok, :reconnected, uuid}, game}
+
+      {:error, error_message} ->
+        {:reply, {:error, error_message}, state}
     end
   end
 
@@ -83,4 +121,23 @@ defmodule Qwhiplash.Boundary.GameServer do
     game = Game.finish_answer_phase(state)
     {:reply, :ok, game}
   end
+
+  def handle_call({:get_host_id}, _from, state) do
+    {:reply, {:ok, state.host_id}, state}
+  end
+
+  def handle_call({:get_game_code}, _from, state) do
+    {:reply, {:ok, state.code}, state}
+  end
+
+  def handle_call({:get_game_state}, _from, state) do
+    {:reply, {:ok, state}, state}
+  end
+
+  defp send_game_state(game) do
+    Logger.debug("Sending game state update #{inspect(game)}")
+    PubSub.broadcast(Qwhiplash.PubSub, pubsub_topic(game.code), {:game_state_update, game})
+  end
+
+  defp pubsub_topic(code), do: "game:#{code}"
 end
