@@ -86,6 +86,22 @@ defmodule Qwhiplash.Core.RoundTest do
       assert Map.get(scores, "user1") == 2
     end
 
+    test "get_score_from_duel/2 returns the score for a duel" do
+      users = ["user1", "user2", "user3", "user4"]
+      round = Round.new(users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])
+
+      round = Round.add_answer!(round, "user1", "answer1")
+      round = Round.add_answer!(round, "user2", "answer2")
+
+      round = Round.vote!(round, "user3", "user1")
+      round = Round.vote!(round, "user4", "user1")
+
+      score = Round.get_score_from_duel(round, MapSet.new(["user1", "user2"]))
+
+      assert score["user1"] == 2
+      assert score["user2"] == 0
+    end
+
     test "get_player_answer/2 returns the answer for a player" do
       users = ["user1", "user2", "user3", "user4"]
       round = Round.new(users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])

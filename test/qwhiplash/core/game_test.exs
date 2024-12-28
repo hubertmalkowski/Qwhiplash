@@ -105,7 +105,7 @@ defmodule Qwhiplash.Core.GameTest do
 
       {:ok, game} = Game.answer(game, player2_id, "answer2")
 
-      assert game.status == :voting
+      assert {:voting, _} = game.status
     end
 
     test "finish_answer_phase/1 changes the game status to voting" do
@@ -114,7 +114,7 @@ defmodule Qwhiplash.Core.GameTest do
       game = Game.start_game(game)
       {:ok, game} = Game.finish_answer_phase(game)
 
-      assert game.status == :voting
+      assert {:voting, _} = game.status
     end
 
     test "vote/3 adds a vote to the current round" do
@@ -127,7 +127,7 @@ defmodule Qwhiplash.Core.GameTest do
 
       player2_id = Map.keys(game.players) |> tl() |> hd()
 
-      game = %{game | status: :voting}
+      game = %{game | status: {:voting, MapSet.new([player_id, player2_id])}}
       {:ok, game} = Game.vote(game, player2_id, player_id)
 
       current_round = Game.get_current_round(game)
@@ -147,7 +147,7 @@ defmodule Qwhiplash.Core.GameTest do
 
       game = Game.start_game(game)
 
-      game = %{game | status: :voting}
+      game = %{game | status: {:voting, MapSet.new(["1", "3"])}}
       {:error, :invalid_voter} = Game.vote(game, "random_player", "player1")
     end
 
@@ -158,25 +158,30 @@ defmodule Qwhiplash.Core.GameTest do
 
       voter_id = Map.keys(game.players) |> hd()
 
-      game = %{game | status: :voting}
+      game = %{game | status: {:voting, MapSet.new(["1", "3"])}}
       {:error, :not_in_duel} = Game.vote(game, voter_id, "player50")
     end
 
-    test "finish_voting_phase/1 changes the game status to results if there is next round" do
-      game = QwiplashFixtures.game_fixture()
+    test "finish_voting_phase/1 changes the game status to to next duel" do
+      game = QwiplashFixtures.game_fixture(4)
+
+      [player1_id, player2_id, player3_id, player4_id] = Map.keys(game.players)
 
       game =
         Game.start_game(game)
 
       {:ok, game} = Game.finish_answer_phase(game)
 
-      game = Game.finish_voting_phase(game)
+      assert {:voting, duel} = game.status
+      assert duel == MapSet.new([player1_id, player2_id])
 
-      assert game.status == :results
+      game = Game.finish_voting_phase(game)
+      assert {:voting, duel} = game.status
+      assert duel == MapSet.new([player3_id, player4_id])
     end
 
     test "finish_voting_phase/1 changes the game status to finished if there is no next round" do
-      game = QwiplashFixtures.game_fixture()
+      game = QwiplashFixtures.game_fixture(2)
 
       game =
         Game.start_game(game)
@@ -199,7 +204,7 @@ defmodule Qwhiplash.Core.GameTest do
     end
 
     test "finish_results_phase/1 changes the game status to answering and increments the current round" do
-      game = QwiplashFixtures.game_fixture()
+      game = QwiplashFixtures.game_fixture(2)
 
       game =
         Game.start_game(game)
@@ -214,7 +219,7 @@ defmodule Qwhiplash.Core.GameTest do
     end
 
     test "game_finished?/1 returns true if the game is finished" do
-      game = QwiplashFixtures.game_fixture()
+      game = QwiplashFixtures.game_fixture(2)
 
       game =
         Game.start_game(game)

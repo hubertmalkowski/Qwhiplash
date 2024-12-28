@@ -121,6 +121,16 @@ defmodule Qwhiplash.Core.Round do
     end)
   end
 
+  @spec get_score_from_duel(t(), MapSet.t()) :: %{Player.id() => integer()}
+  def get_score_from_duel(round, duel) do
+    round.duels
+    |> Map.get(duel)
+    |> Map.get(:answers)
+    |> Enum.reduce(%{}, fn {player, %{votes: votes}}, acc ->
+      Map.put(acc, player, length(votes))
+    end)
+  end
+
   @spec get_prompt(t(), Player.id()) :: String.t() | nil
   def get_prompt(round, player) do
     case find_player_duel(round, player) do

@@ -40,7 +40,8 @@ defmodule Qwhiplash.Core.Game do
   alias Qwhiplash.Core.Round
 
   @type id :: String.t()
-  @type game_status :: :pending | :answering | :voting | :results | :finished | :exiting
+  @type game_status ::
+          :pending | :answering | {:voting, MapSet.t()} | :results | :finished | :exiting
 
   @type t :: %__MODULE__{
           id: id(),
@@ -187,7 +188,7 @@ defmodule Qwhiplash.Core.Game do
           | {:error, :not_in_duel}
           | {:error, :invalid_state}
           | {:error, :invalid_voter}
-  def vote(%{status: :voting} = game, voter_id, player_id) do
+  def vote(%{status: {:voting, _}} = game, voter_id, player_id) do
     if player_is_in_game?(game, voter_id) do
       game
       |> get_current_round()
@@ -207,7 +208,7 @@ defmodule Qwhiplash.Core.Game do
   def vote(_, _, _), do: {:error, :invalid_state}
 
   @spec finish_voting_phase(t()) :: t()
-  def finish_voting_phase(%__MODULE__{status: :voting} = game) do
+  def finish_voting_phase(%__MODULE__{status: {:voting, _}} = game) do
     game
     |> add_scores_from_current_round()
     |> leap_to_next_state()
@@ -218,10 +219,6 @@ defmodule Qwhiplash.Core.Game do
     game
     |> leap_to_next_state()
     |> next_round()
-  end
-
-  @spec finish_game() :: :ok
-  def finish_game() do
   end
 
   @spec game_finished?(t()) :: boolean()
@@ -259,9 +256,11 @@ defmodule Qwhiplash.Core.Game do
   end
 
   defp add_scores_from_current_round(game) do
+    {:voting, duel} = game.status
+
     scores =
       get_current_round(game)
-      |> Round.get_scores()
+      |> Round.get_score_from_duel(duel)
 
     players =
       Enum.reduce(scores, game.players, fn {player_id, score}, acc ->
@@ -297,13 +296,29 @@ defmodule Qwhiplash.Core.Game do
   end
 
   defp leap_to_next_state(%__MODULE__{status: :pending} = game), do: %{game | status: :answering}
-  defp leap_to_next_state(%__MODULE__{status: :answering} = game), do: %{game | status: :voting}
 
-  defp leap_to_next_state(%__MODULE__{status: :voting} = game) do
-    if game.current_round + 1 == game.round_limit do
-      %{game | status: :finished}
-    else
-      %{game | status: :results}
+  defp leap_to_next_state(%__MODULE__{status: :answering} = game),
+    do: %{
+      game
+      | status: {:voting, get_current_round(game).duels |> Map.keys() |> hd()}
+    }
+
+  defp leap_to_next_state(%__MODULE__{status: {:voting, duel}} = game) do
+    current_round = get_current_round(game)
+    duels = Map.keys(current_round.duels)
+    current_duel_index = duels |> Enum.find_index(fn x -> MapSet.equal?(duel, x) end)
+
+    case current_duel_index do
+      index when index + 1 == length(duels) ->
+        if game.current_round + 1 == game.round_limit do
+          %{game | status: :finished}
+        else
+          %{game | status: :results}
+        end
+
+      index ->
+        next_voting_duel = get_current_round(game).duels |> Map.keys() |> Enum.at(index + 1)
+        %{game | status: {:voting, next_voting_duel}}
     end
   end
 
