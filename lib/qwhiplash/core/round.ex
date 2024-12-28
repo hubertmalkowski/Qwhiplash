@@ -121,6 +121,14 @@ defmodule Qwhiplash.Core.Round do
     end)
   end
 
+  @spec get_prompt(t(), Player.id()) :: String.t() | nil
+  def get_prompt(round, player) do
+    case find_player_duel(round, player) do
+      nil -> nil
+      {duel, _} -> Map.get(round.duels, duel).prompt
+    end
+  end
+
   @spec get_player_answer(t(), Player.id()) :: String.t() | nil
   def get_player_answer(round, player) do
     case get_player_answer_map(round, player) do

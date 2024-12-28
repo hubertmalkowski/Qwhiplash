@@ -3,21 +3,22 @@ defmodule QwhiplashWeb.HostLive do
   alias Qwhiplash.Boundary.GameServer
   alias Qwhiplash.GameDynamicSupervisor
   use QwhiplashWeb, :live_view
+  import QwhiplashWeb.HostComponents
 
   @impl true
   def render(assigns) do
     ~H"""
     <div class="h-full">
-      <header class="flex justify-between items-center">
-        <div class="text-primary text-8xl font-extrabold">{@game_code}</div>
-        <button phx-click="start_game" class="btn btn-primary btn-lg shadow-md">Start game</button>
-      </header>
-
-      <div class="flex flex-col gap-4 pt-4">
-        <%= for {player_id, player} <- @game.players do %>
-          <div class="card card-body shadow-md bg-base-200 text-2xl font-bold">{player.name}</div>
-        <% end %>
-      </div>
+      <%= case @game.status do %>
+        <% :pending -> %>
+          <.pending game_code={@game_code} players={@game.players} />
+        <% :answering -> %>
+          <.answer />
+        <% _ -> %>
+          <div class="text-primary text-8xl font-extrabold">
+            UNHANDLED GAME STATE
+          </div>
+      <% end %>
     </div>
     """
   end
@@ -35,14 +36,22 @@ defmodule QwhiplashWeb.HostLive do
   end
 
   @impl true
+  def handle_event("start_game", _params, socket) do
+    case GameServer.start_game(socket.assigns.game_pid) do
+      :ok ->
+        {:noreply, put_flash(socket, :info, "Game started!")}
+    end
+  end
+
+  @impl true
   def handle_info({:game_state_update, game}, socket) do
     {:noreply, assign(socket, game: game)}
   end
 
-  def handle_info(msg, socket) do
-    Logger.debug("Unhandled message: #{inspect(msg)}")
-
-    {:noreply, socket}
+  @impl true
+  def terminate(_reason, socket) do
+    game_pid = socket.assigns.game_pid
+    GameServer.unsubscribe(game_pid)
   end
 
   defp assign_game_code(socket, game) do

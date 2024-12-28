@@ -41,6 +41,7 @@ defmodule Qwhiplash.Boundary.GameServer do
     PubSub.unsubscribe(Qwhiplash.PubSub, pubsub_topic(code))
   end
 
+  @spec answer(pid(), Player.id(), String.t()) :: :ok
   def answer(pid, player_id, answer) do
     GenServer.call(pid, {:answer, player_id, answer})
   end
@@ -85,11 +86,13 @@ defmodule Qwhiplash.Boundary.GameServer do
   @impl true
   def handle_call({:start}, _from, %Game{} = game) do
     game = Game.start_game(game)
+    send_game_state(game)
     {:reply, :ok, game}
   end
 
   def handle_call({:exit}, _from, %Game{} = game) do
     game = Game.exit_game(game)
+    send_game_state(game)
     {:reply, :ok, game}
   end
 
@@ -112,13 +115,18 @@ defmodule Qwhiplash.Boundary.GameServer do
 
   def handle_call({:answer, player_id, answer}, _from, state) do
     case Game.answer(state, player_id, answer) do
-      {:ok, game} -> {:reply, :ok, game}
-      {:error, error_message} -> {:reply, {:error, error_message}, state}
+      {:ok, game} ->
+        send_game_state(game)
+        {:reply, :ok, game}
+
+      {:error, error_message} ->
+        {:reply, {:error, error_message}, state}
     end
   end
 
   def handle_call({:finish_answer_phase}, _from, state) do
     game = Game.finish_answer_phase(state)
+    send_game_state(game)
     {:reply, :ok, game}
   end
 

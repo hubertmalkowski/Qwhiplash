@@ -6,7 +6,7 @@ defmodule QwhiplashWeb.HomeLive do
 
   def render(assigns) do
     ~H"""
-    <.form class="container space-y-4" phx-submit="join_game">
+    <form class="container space-y-4" phx-submit="join_game">
       <h1 class="text-xl font-bold">Join game</h1>
       <div class="space-y-2">
         <label class="input input-bordered flex items-center gap-2">
@@ -26,7 +26,7 @@ defmodule QwhiplashWeb.HomeLive do
         <button class="btn btn-primary w-full ">Join game</button>
         <button type="button" phx-click="start_game" class="btn w-full ">Become a host</button>
       </div>
-    </.form>
+    </form>
     """
   end
 
