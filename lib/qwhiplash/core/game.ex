@@ -188,17 +188,29 @@ defmodule Qwhiplash.Core.Game do
           | {:error, :not_in_duel}
           | {:error, :invalid_state}
           | {:error, :invalid_voter}
-  def vote(%{status: {:voting, _}} = game, voter_id, player_id) do
+  def vote(%{status: {:voting, duel}} = game, voter_id, player_id) do
     if player_is_in_game?(game, voter_id) do
       game
       |> get_current_round()
-      |> vote_in_round(voter_id, player_id)
+      |> vote_in_round(voter_id, player_id, duel)
       |> case do
         {:error, _reason} = error ->
           error
 
         round ->
-          {:ok, update_current_round(game, round)}
+          game =
+            Round.get_voters(round, player_id)
+            |> length()
+            |> case do
+              num_of_voters when num_of_voters == length(game.players) - 2 ->
+                update_current_round(game, round)
+                |> finish_voting_phase()
+
+              _ ->
+                update_current_round(game, round)
+            end
+
+          {:ok, game}
       end
     else
       {:error, :invalid_voter}
@@ -231,13 +243,16 @@ defmodule Qwhiplash.Core.Game do
     Map.get(game.rounds, game.current_round)
   end
 
+  def get_voted_duel(%{status: {:voting, duel}} = game),
+    do: game |> get_current_round() |> Map.get(:duels) |> Map.get(duel)
+
   defp update_current_round(game, round) do
     %{game | rounds: Map.put(game.rounds, game.current_round, round)}
   end
 
-  defp vote_in_round(round, voter_id, player_id) do
+  defp vote_in_round(round, voter_id, player_id, duel) do
     try do
-      Round.vote!(round, voter_id, player_id)
+      Round.vote!(round, voter_id, duel, player_id)
     rescue
       _ -> {:error, :not_in_duel}
     end

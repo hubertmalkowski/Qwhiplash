@@ -155,6 +155,13 @@ defmodule Qwhiplash.Core.Round do
     end
   end
 
+  @spec get_voters(t(), MapSet.t()) :: list(Player.id())
+  def get_voters(round, duel) do
+    round.duels[duel].answers
+    |> Map.values()
+    |> Enum.flat_map(& &1.votes)
+  end
+
   @spec find_player_duel(t(), Player.id()) :: {MapSet.t(), duel()} | nil
   def find_player_duel(round, player) do
     Enum.find(round.duels, fn {key, _} ->
