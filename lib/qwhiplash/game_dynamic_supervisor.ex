@@ -6,7 +6,6 @@ defmodule Qwhiplash.GameDynamicSupervisor do
   @prompts [
     "Największym marzeniem Julki jest ______.",
     "Kiedy Michał coś robi, zawsze kończy się to ______.",
-    "Ostateczny plan Elona Muska na Marsa to ______.",
     "Podczas rodzinnej kolacji Magda Gessler rzuciła ______ na stół.",
     "Anton nie wierzy w Boga, ale za to wierzy w ______.",
     "Akis nauczył mnie, że życie to przede wszystkim ______.",
@@ -17,7 +16,6 @@ defmodule Qwhiplash.GameDynamicSupervisor do
     "Nowa polska tradycja narodowa to świętowanie ______.",
     "GenZ twierdzi, że nie da się przeżyć dnia bez ______.",
     "Największy sekret TikToka: cała platforma opiera się na ______.",
-    "Elon Musk w sekrecie pracuje nad projektem o nazwie ______.",
     "Najlepszy sposób, by zdobyć followersów, to ______.",
     "Julka zawsze mówi: „Życie to nie bajka, to ______”.",
     "Michał ostatnio próbował ______ i skończyło się szpitalem.",
@@ -33,7 +31,6 @@ defmodule Qwhiplash.GameDynamicSupervisor do
     "Najnowszy polski mem, który zniszczył internet: ______.",
     "Nie wiem, co jest bardziej stresujące: egzamin, czy ______.",
     "Nowa aplikacja społecznościowa skupia się tylko na ______.",
-    "Terry Davis powiedziałby, że prawdziwe znaczenie życia to ______.",
     "Magda Gessler na kolejną rewolucję restauracyjną przynosi ______.",
     "Akis i Misia twierdzą, że sekretem ich związku jest ______.",
     "Najbardziej romantyczny prezent, jaki Akis dał Misi, to ______.",
