@@ -53,7 +53,6 @@ defmodule Qwhiplash.GameDynamicSupervisor do
     "Stasiu twierdzi, że bycie rudym to dar, bo pozwala na ______.",
     "Misia i Michał spędzili cały dzień próbując wymyślić, jak działa ______.",
     "Hubert znalazł nową pasję: ______.",
-    "Stasiu uważa, że największym problemem na świecie jest brak ______.",
     "Misia myślała, że może zbudować rakietę z ______.",
     "Michał powiedział, że jedyną rzeczą, której nie rozumie, jest ______.",
     "Hubert i jego nowy biznesplan: sprzedaż ______.",
@@ -61,16 +60,16 @@ defmodule Qwhiplash.GameDynamicSupervisor do
     "Misia próbowała naprawić komputer, ale zamiast tego stworzyła ______.",
     "Michał ostatnio pochwalił się swoim największym osiągnięciem: ______.",
     "Hubert i jego nowy trend w internecie: #______.",
-    "Stasiu twierdzi, że rudzi mają specjalne moce, takie jak ______.",
     "Misia i Michał postanowili rozwiązać problem globalnego ocieplenia za pomocą ______.",
     "Hubert uczy, że najlepsza motywacja w życiu to ______.",
-    "Stasiu powiedział, że jedynym sposobem na szczęście jest ______.",
     "Akis i Misia twierdzą, że sekretem ich związku jest ______.",
     "Najbardziej romantyczny prezent, jaki Akis dał Misi, to ______.",
     "Misia chciała zrobić Akisowi niespodziankę, ale skończyło się na ______.",
     "Akis i Misia kłócą się najczęściej o ______.",
     "Idealny wieczór Akisa i Misi to dużo ______ i zero problemów.",
-    "Mikołaj zmienia ______ jak rękawiczki"
+    "Mikołaj zmienia ______ jak rękawiczki",
+    "Maja Doksa twierdzi, że najlepszym uzupełnieniem piwa jest ______.",
+    "Ostatnio Maja spiła się tak bardzo, że skończyła na ______ po hotdogach."
   ]
 
   def start_link(_opts) do
