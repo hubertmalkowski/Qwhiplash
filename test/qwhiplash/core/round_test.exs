@@ -133,6 +133,13 @@ defmodule Qwhiplash.Core.RoundTest do
       assert Round.get_player_votes(round, "user1") == ["user4", "user3"]
     end
 
+    test "all_has_answered?/1 returns false if not all players have answered" do
+      users = ["user1", "user2", "user3", "user4"]
+      round = Round.new(users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])
+
+      assert Round.all_answered?(round) == false
+    end
+
     test "all_has_answered?/1 returns true if all players have answered" do
       users = ["user1", "user2", "user3", "user4"]
       round = Round.new(users, [], ["prompt1", "prompt2", "prompt3", "prompt4"])

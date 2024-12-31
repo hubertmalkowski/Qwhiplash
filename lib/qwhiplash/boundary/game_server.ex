@@ -63,16 +63,8 @@ defmodule Qwhiplash.Boundary.GameServer do
     GenServer.call(pid, {:get_game_state})
   end
 
-  def vote(pid, player_id, voter_id) do
-  end
-
-  def finish_voting_phase(pid) do
-  end
-
-  def finish_results_phase(pid) do
-  end
-
-  def finish_game(pid) do
+  def vote(pid, voter_id, player_id) do
+    GenServer.call(pid, {:vote, voter_id, player_id})
   end
 
   # GenServer callbacks
@@ -85,7 +77,7 @@ defmodule Qwhiplash.Boundary.GameServer do
 
   @impl true
   def handle_call({:start}, _from, %Game{} = game) do
-    game = Game.start_game(game)
+    game = Game.start_game(game) |> schedule_state_expiry()
     send_game_state(game)
     {:reply, :ok, game}
   end
@@ -116,6 +108,31 @@ defmodule Qwhiplash.Boundary.GameServer do
   def handle_call({:answer, player_id, answer}, _from, state) do
     case Game.answer(state, player_id, answer) do
       {:ok, game} ->
+        game =
+          if game.status != :answering do
+            schedule_state_expiry(game)
+          else
+            game
+          end
+
+        send_game_state(game)
+        {:reply, :ok, game}
+
+      {:error, error_message} ->
+        {:reply, {:error, error_message}, state}
+    end
+  end
+
+  def handle_call({:vote, voter_id, player_id}, _from, state) do
+    case Game.vote(state, voter_id, player_id) do
+      {:ok, game} ->
+        game =
+          if state.status != game.status do
+            schedule_state_expiry(game)
+          else
+            game
+          end
+
         send_game_state(game)
         {:reply, :ok, game}
 
@@ -142,10 +159,69 @@ defmodule Qwhiplash.Boundary.GameServer do
     {:reply, {:ok, state}, state}
   end
 
+  @impl true
+  def handle_info({:timeout, :answering}, state) do
+    {:ok, game} = Game.finish_answer_phase(state)
+    game = schedule_state_expiry(game)
+    send_game_state(game)
+    {:noreply, game}
+  end
+
+  def handle_info({:timeout, {:voting, _}}, state) do
+    game = Game.finish_voting_phase(state) |> schedule_state_expiry()
+    send_game_state(game)
+    {:noreply, game}
+  end
+
+  def handle_info({:timeout, :results}, state) do
+    game = Game.finish_results_phase(state) |> schedule_state_expiry()
+    send_game_state(game)
+    {:noreply, game}
+  end
+
   defp send_game_state(game) do
     Logger.debug("Sending game state update #{inspect(game)}")
     PubSub.broadcast(Qwhiplash.PubSub, pubsub_topic(game.code), {:game_state_update, game})
   end
 
   defp pubsub_topic(code), do: "game:#{code}"
+
+  # schedules the game to expire after a certain amount of time
+  # 120 seconds for answering, 60 seconds for voting, 10 seconds for results
+  # It assigns timer_info to the game. The timer_info is {timer_ref, timer_end_DateTime}
+  # After the timer expires, it sends a message to the game server to handle the timeout
+  # The message is {:timeout, :answering} or {:timeout, :voting} or {:timeout, :results}
+  defp schedule_state_expiry(game) do
+    game =
+      if Map.get(game, :timer_info) != nil do
+        cancel_state_expiry(game)
+      else
+        game
+      end
+
+    schedule_time =
+      case game.status do
+        :answering -> 120
+        {:voting, _} -> 60
+        :results -> 10
+        _ -> 0
+      end
+
+    if schedule_time > 0 do
+      timer_end_time = DateTime.utc_now() |> DateTime.add(schedule_time, :second)
+      timer_ref = Process.send_after(self(), {:timeout, game.status}, schedule_time * 1000)
+      %{game | timer_info: {timer_ref, timer_end_time}}
+    else
+      game
+    end
+  end
+
+  defp cancel_state_expiry(game) do
+    with {timer_ref, _} <- game.timer_info do
+      Process.cancel_timer(timer_ref)
+      %{game | timer_info: nil}
+    else
+      _ -> game
+    end
+  end
 end

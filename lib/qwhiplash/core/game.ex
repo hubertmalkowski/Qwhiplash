@@ -49,6 +49,7 @@ defmodule Qwhiplash.Core.Game do
           players: %{
             id() => Player.t()
           },
+          timer_info: nil | {reference(), DateTime.t()},
           host_id: binary(),
           current_round: integer(),
           status: game_status(),
@@ -60,6 +61,7 @@ defmodule Qwhiplash.Core.Game do
   @enforce_keys [:id, :code, :players, :rounds, :prompt_pool, :current_round, :status, :host_id]
   defstruct [
     :id,
+    :timer_info,
     :code,
     :players,
     :rounds,
@@ -80,6 +82,7 @@ defmodule Qwhiplash.Core.Game do
       prompt_pool: prompt_pool,
       host_id: host_id,
       current_round: 0,
+      timer_info: nil,
       status: :pending,
       round_limit: 3
     }
@@ -181,7 +184,7 @@ defmodule Qwhiplash.Core.Game do
   If the game is not in the answering state it will return :invalid_state error.
   If the voter is not a player in the game it will return :invalid_voter error.
 
-  If all players have voted, it will leap to the next state (results).
+  If all players have voted, it will leap to the next state duel. If all duels are voted, it will leap to the next state (results or finished).
   """
   @spec vote(t(), Player.id(), Player.id()) ::
           {:ok, t()}
@@ -199,10 +202,10 @@ defmodule Qwhiplash.Core.Game do
 
         round ->
           game =
-            Round.get_voters(round, player_id)
+            Round.get_voters(round, duel)
             |> length()
             |> case do
-              num_of_voters when num_of_voters == length(game.players) - 2 ->
+              num_of_voters when num_of_voters == map_size(game.players) - 2 ->
                 update_current_round(game, round)
                 |> finish_voting_phase()
 
@@ -279,7 +282,7 @@ defmodule Qwhiplash.Core.Game do
 
     players =
       Enum.reduce(scores, game.players, fn {player_id, score}, acc ->
-        Player.update_score(acc[player_id], score)
+        Map.update!(acc, player_id, &Player.update_score(&1, score))
       end)
 
     %{game | players: players}

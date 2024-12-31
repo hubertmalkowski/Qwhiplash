@@ -157,7 +157,10 @@ defmodule Qwhiplash.Core.Round do
 
   @spec get_voters(t(), MapSet.t()) :: list(Player.id())
   def get_voters(round, duel) do
-    round.duels[duel].answers
+    Logger.debug("Getting voters for round #{inspect(round)}")
+    Logger.debug("Getting voters for duel #{inspect(duel)}")
+
+    Map.get(round.duels, duel).answers
     |> Map.values()
     |> Enum.flat_map(& &1.votes)
   end
@@ -172,7 +175,10 @@ defmodule Qwhiplash.Core.Round do
   @spec all_answered?(t()) :: boolean()
   def all_answered?(round) do
     Enum.all?(Map.values(round.duels), fn duel ->
-      Map.keys(duel.answers) |> length() == 2
+      duel.answers
+      |> Enum.reduce(true, fn {_, answer}, acc ->
+        acc && answer.answer != nil
+      end)
     end)
   end
 
@@ -186,14 +192,25 @@ defmodule Qwhiplash.Core.Round do
   defp generate_duels(pairings, prompts) do
     pairings
     |> Enum.reduce(%{}, fn pairing, acc ->
-      Map.put(acc, pairing, random_prompt(prompts) |> create_duel())
+      Map.put(acc, pairing, random_prompt(prompts) |> create_duel(pairing))
     end)
   end
 
-  defp create_duel(prompt) do
+  defp create_duel(prompt, pairing) do
     %{
       prompt: prompt,
-      answers: %{}
+      answers:
+        MapSet.to_list(pairing)
+        |> Enum.reduce(%{}, fn player, acc ->
+          Map.put(acc, player, create_answer())
+        end)
+    }
+  end
+
+  defp create_answer() do
+    %{
+      answer: nil,
+      votes: []
     }
   end
 

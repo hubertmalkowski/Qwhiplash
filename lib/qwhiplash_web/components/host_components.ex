@@ -28,4 +28,48 @@ defmodule QwhiplashWeb.HostComponents do
     </div>
     """
   end
+
+  attr :duel, :any, required: true
+
+  def voting(assigns) do
+    ~H"""
+    <div class="text-6xl font-bold text-primary">
+      {@duel.prompt}
+    </div>
+    <div class="flex flex-col gap-4 pt-4">
+      <%= for {_player_id, answer} <- @duel.answers do %>
+        <div class="card card-body shadow-md bg-base-200 text-2xl font-bold">
+          <%= if answer.answer == "" or answer.answer == nil do %>
+            <span class="text-base-content/60 italic">
+              Frajer nie odpowiedział xd
+            </span>
+          <% else %>
+            {answer.answer}
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :players, :list, required: true
+
+  def results(assigns) do
+    ~H"""
+    <div class="flex flex-col gap-4 pt-4">
+      <%= for {player, index} <- @players do %>
+        <div class="card card-body shadow-md bg-base-200 text-2xl font-bold">
+          <div class="w-full h-full flex justify-between">
+            <span>
+              {index}. {player.name}
+            </span>
+            <span class="text-2xl text-primary">
+              {player.score}
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
 end

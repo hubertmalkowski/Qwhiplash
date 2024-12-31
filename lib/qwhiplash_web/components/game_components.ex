@@ -1,5 +1,6 @@
 defmodule QwhiplashWeb.GameComponents do
   use Phoenix.Component
+  alias Phoenix.LiveView.JS
 
   attr :player_name, :string, required: true
 
@@ -40,6 +41,44 @@ defmodule QwhiplashWeb.GameComponents do
             <button class="btn btn-primary w-full">Submit</button>
           </div>
         </form>
+    <% end %>
+    """
+  end
+
+  attr :voting, :boolean, default: false, doc: "Whether the player can vote or not"
+  attr :duel, :any, required: false
+  attr :voted, :boolean, default: false
+
+  def voting(assigns) do
+    ~H"""
+    {@voted}
+    <%= cond do %>
+      <% @voted == true -> %>
+        <div class="text-primary text-8xl font-extrabold">
+          Waiting for other players to vote
+        </div>
+      <% @voting == false -> %>
+        <div class="text-primary text-8xl font-extrabold">
+          You are not voting this round
+        </div>
+      <% true -> %>
+        <div class="flex flex-col gap-4 pt-4" id="answers">
+          <%= for {player_id, answer} <- @duel.answers do %>
+            <button
+              phx-value-answerer={player_id}
+              phx-click={JS.push("vote") |> JS.hide(to: "#answers")}
+              class="btn card card-body shadow-md bg-base-200 text-2xl font-bold"
+            >
+              <%= if answer.answer == "" or answer.answer == nil do %>
+                <span class="text-base-content/60 italic">
+                  Frajer nie odpowiedział xd
+                </span>
+              <% else %>
+                {answer.answer}
+              <% end %>
+            </button>
+          <% end %>
+        </div>
     <% end %>
     """
   end

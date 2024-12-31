@@ -159,7 +159,28 @@ defmodule Qwhiplash.Core.GameTest do
       voter_id = Map.keys(game.players) |> hd()
 
       game = %{game | status: {:voting, MapSet.new(["1", "3"])}}
-      {:error, :not_in_duel} = Game.vote(game, voter_id, "player50")
+      assert {:error, :not_in_duel} = Game.vote(game, voter_id, "player50")
+    end
+
+    test "vote/3 changes duel in state if there are still duels to vote left" do
+      game = QwiplashFixtures.game_fixture(4)
+
+      [player1_id, player2_id, player3_id, player4_id] = Map.keys(game.players)
+
+      game =
+        Game.start_game(game)
+
+      {:ok, game} = Game.answer(game, player1_id, "answer1")
+      {:ok, game} = Game.answer(game, player2_id, "answer2")
+      {:ok, game} = Game.answer(game, player3_id, "answer3")
+      {:ok, game} = Game.answer(game, player4_id, "answer4")
+
+      assert {:voting, MapSet.new([player1_id, player2_id])} == game.status
+
+      {:ok, game} = Game.vote(game, player3_id, player2_id)
+      {:ok, game} = Game.vote(game, player4_id, player2_id)
+
+      assert {:voting, MapSet.new([player3_id, player4_id])} == game.status
     end
 
     test "finish_voting_phase/1 changes the game status to to next duel" do

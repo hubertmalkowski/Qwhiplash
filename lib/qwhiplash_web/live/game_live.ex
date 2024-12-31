@@ -15,9 +15,11 @@ defmodule QwhiplashWeb.GameLive do
           <.pending player_name={@current_player.name} />
         <% :answering -> %>
           <.answering prompt={@prompt} answered={@answered} />
+        <% {:voting, _} -> %>
+          <.voting duel={@duel} voting={@voting} voted={@voted} />
         <% _ -> %>
           <div class="text-primary text-8xl font-extrabold">
-            UNHANDLED GAME STATE
+            LOOK AT THE SCREEN
           </div>
       <% end %>
     </div>
@@ -48,15 +50,17 @@ defmodule QwhiplashWeb.GameLive do
     {:noreply, socket |> assign(:answered, true)}
   end
 
-  @impl true
-  def handle_info({:game_state_update, game}, socket) do
-    {:noreply, handle_game_state_update(socket, game)}
+  def handle_event("vote", %{"answerer" => answerer}, socket) do
+    :ok = GameServer.vote(socket.assigns.game_pid, socket.assigns.player_id, answerer)
+
+    {:noreply,
+     socket
+     |> assign(:voted, true)}
   end
 
   @impl true
-  def terminate(_reason, socket) do
-    game_pid = socket.assigns.game_pid
-    GameServer.unsubscribe(game_pid)
+  def handle_info({:game_state_update, game}, socket) do
+    {:noreply, handle_game_state_update(socket, game)}
   end
 
   defp handle_game_state_update(socket, game) do
@@ -75,5 +79,28 @@ defmodule QwhiplashWeb.GameLive do
     |> assign(:answered, player_answered?)
   end
 
+  defp state_related_assigns(socket, %Game{status: {:voting, duel}} = game) do
+    player_id = socket.assigns.player_id
+
+    duel_obj = Game.get_voted_duel(game)
+
+    player_voted? = find_player_vote_in_duel(duel_obj, player_id) != nil
+
+    socket = assign(socket, :voted, player_voted?)
+
+    if MapSet.member?(duel, player_id) do
+      assign(socket, :duel, duel_obj)
+      |> assign(:voting, false)
+    else
+      assign(socket, :duel, duel_obj)
+      |> assign(:voting, true)
+    end
+  end
+
   defp state_related_assigns(socket, _game), do: socket
+
+  defp find_player_vote_in_duel(duel, player_id) do
+    duel.answers
+    |> Enum.find(fn {_, answer} -> answer.votes |> Enum.member?(player_id) end)
+  end
 end
